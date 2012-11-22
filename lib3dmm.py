@@ -156,23 +156,34 @@ class Movie:
 
 
     def print_tree(self):
-        def walk(indent, quad):
-            if quad:
-                print("{}{}".format(indent * '    ', quad))
-                for ref in quad.references:
-                    walk(indent + 1, get_quad(ref['type'], ref['id']))
+        for indent, quad in self.walk(0, self.get_root_quad()):
+            print("{}{}".format(indent * '    ', quad))
 
-        def get_quad(type, id):
-            for quad in self.quads:
-                if quad.type == type and quad.id == id:
-                    return quad
+    def get_tree(self):
+        for indent, quad in self.walk(0, self.get_root_quad()):
+            yield (indent, quad)
 
+    def walk(self, level, quad):
+        if quad:
+            yield level, quad
+            for ref in quad.references:
+                for l, q in self.walk(level + 1, self.get_quad(ref)):
+                    yield l, q
+
+    def get_quad(self, ref):
+        ref_type = ref['type']
+        ref_id = ref['id']
+        for quad in self.quads:
+            if quad.type == ref_type and quad.id == ref_id:
+                return quad
+
+    def get_root_quad(self):
         root = None
         for quad in self.quads:
             if quad.mode == 2:
                 root = quad
+        return root
 
-        walk(0, root)
 
 
 if __name__ == '__main__':
