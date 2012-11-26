@@ -5,7 +5,7 @@ import lib3dmm
 class Application(Frame):
     def __init__(self, master=None):
         Frame.__init__(self, master)
-        self.grid()
+        self.pack(fill='both', expand=True)
         self.createWidgets()
 
     def createWidgets(self):
@@ -51,7 +51,6 @@ class Application(Frame):
 
 
 app = Application()
-app.pack(fill='both', expand=True)
 app.master.title('Movie File Layout')
 app.load_movie('test_movie.3mm')
 app.mainloop()
