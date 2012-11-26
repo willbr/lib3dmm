@@ -102,14 +102,12 @@ def dump_quad():
         data_file = io.BytesIO(quad.data)
         read = functools.partial(lib3dmm.read_struct, file=data_file)
 
-        data_file.seek(0)
         d = data_file.read(20)
         section_dumps.append(lib3dmm.hex_dump(d,
             quad.section_offset))
+        data_file.seek(0)
 
         if quad.type == b'GST ':
-            
-            data_file.seek(0)
             magic = read('L')
             gst_type = read('L')
             count = read('L')
