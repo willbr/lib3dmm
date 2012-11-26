@@ -6,7 +6,10 @@ import io
 import functools
 import struct
 import time
+import pprint
 from os import system
+
+pformat = pprint.PrettyPrinter(indent=4).pformat
 
 def clear():
     enable()
@@ -90,14 +93,91 @@ def update_selection_value():
 def dump_quad():
     m = lib3dmm.Movie(movie_file_name)
     section_dumps = []
+    ignore_list = [s.upper() for s in ignore_list_string.get().split()]
     for quad in m.quads:
-        if quad.type == b'THUM':
+        if quad.type.decode('ascii').strip() in ignore_list:
             continue
 
         section_dumps.append(quad.type)
-        if quad.type == b'GGAE':
-            data_file = io.BytesIO(quad.data)
-            read = functools.partial(lib3dmm.read_struct, file=data_file)
+        data_file = io.BytesIO(quad.data)
+        read = functools.partial(lib3dmm.read_struct, file=data_file)
+
+        data_file.seek(0)
+        d = data_file.read(20)
+        section_dumps.append(lib3dmm.hex_dump(d,
+            quad.section_offset))
+
+        if quad.type == b'GST ':
+            
+            data_file.seek(0)
+            magic = read('L')
+            gst_type = read('L')
+            count = read('L')
+            offset = read('L')
+            data_file.seek(offset + 20)
+
+            if gst_type == 0x20:
+                actors = []
+                for i in range(count):
+                    actor = {}
+                    actor['name_offset'] = read('L')
+                    actor['id'] = read('L')
+                    actor['unknown_c'] = read('L')
+                    actor['actor_or_prop'] = read('L')
+                    actor['unknown_e'] = read('L')
+                    actor['unknown_f'] = read('L')
+                    actor['label'] = read('4s')[::-1]
+                    actor['actor_id'] = read('L')
+                    actors.append(actor)
+
+                length = 4 * 8
+                for i in range(count):
+                    o = offset + 20 + i * length
+                    data_file.seek(o)
+                    d = data_file.read(length)
+                    section_dumps.append(lib3dmm.hex_dump(d,
+                        quad.section_offset + o))
+
+                for i in range(len(actors)):
+                    actor = actors[i]
+                    data_file.seek(20 + actor['name_offset'])
+                    length = read('B')
+                    actor['name'] = read('%ds' % length)
+
+                print(pformat (actors))
+
+            elif gst_type == 0x08:
+                data_file.seek(20)
+                d = data_file.read(quad.section_length -
+                        (quad.section_length -offset))
+                section_dumps.append(lib3dmm.hex_dump(d,
+                    quad.section_offset + 20))
+
+                data_file.seek(20 + offset)
+                d = data_file.read(quad.section_length)
+                section_dumps.append(lib3dmm.hex_dump(d,
+                    quad.section_offset + 20 + offset))
+
+                data_file.seek(20 + offset)
+                index = []
+                for i in range(count):
+                    offset = read('L')
+                    id = read('L')
+                    index.append((offset, id))
+
+                strings = []
+                for o, id in index:
+                    o += 20
+                    data_file.seek(o)
+                    length = read('B')
+                    name = read('%ds' % length)
+                    strings.append((id, name))
+                strings.sort()
+                print(pformat(strings))
+            else:
+                print ('unknown gst_type: {}'.format(gst_type))
+
+        elif quad.type == b'GGAE':
             magic = read('L')
             count = read('L')
             offset = read('L')
@@ -117,14 +197,15 @@ def dump_quad():
                 section_dumps.append(lib3dmm.hex_dump(d,
                     quad.section_offset + o + 20))
         else:
-            data_file = io.BytesIO(quad.data)
+
+            data_file.seek(0)
             d = data_file.read(quad.section_length)
             section_dumps.append(lib3dmm.hex_dump(d,
                 quad.section_offset))
 
     return section_dumps
 
-def update_display(new_dump):
+def update_dump(new_dump):
     global current_data
     if new_dump == None:
         clear()
@@ -132,10 +213,13 @@ def update_display(new_dump):
     clear()
     enable()
     new_data = {}
+    current_quad = None
     for section in new_dump:
         if type(section) == bytes:
-            t.insert('end-1c', section.decode('ascii') + '\n\n')
+            current_quad = section.decode('ascii')
+            t.insert('end-1c', current_quad + '\n\n')
             continue
+
         for offset, data, characters in section:
             t.insert('end-1c', '{:8X} | '.format(offset))
             for i in range(0, 16, 4):
@@ -160,7 +244,6 @@ def update_display(new_dump):
                 if len(d) == 0:
                     t.insert('end-1c', ' ' * 11)
                 t.insert('end-1c', ' ')
-                #t.insert('end-1c', ' ')
             t.insert('end-1c', '| ')
             t.insert('end-1c', characters)
             t.insert('end-1c', '\n')
@@ -168,13 +251,16 @@ def update_display(new_dump):
     disable()
     current_data = new_data
 
+def update_display():
+    current_dump = dump_quad()
+    update_dump(current_dump)
+
 def check_if_modified():
     global last_time_modified
     try:
         time_modified = os.stat(movie_file_name).st_mtime
         if time_modified != last_time_modified:
-            current_dump = dump_quad()
-            update_display(current_dump)
+            update_display()
             last_time_modified = time_modified
     except FileNotFoundError:
         # 3DMM uses a temp file while saving
@@ -267,18 +353,29 @@ root.bind('u', lambda e: change_value_reset())
 #root.bind('<KeyPres-a>', lambda e: print('key'))
 #root.bind('<KeyRelease-a>', lambda e: print('key'))
 
+top_section = Frame()
 bottom_section = Frame()
 
 signed_long = IntVar()
 unsigned_long = IntVar()
-step = IntVar(value=1000)
+step = IntVar(value=1)
 hexed_long = IntVar()
+ignore_list_string = StringVar(value='ACTR GGAE GGFR GGST GST PATH SCEN TDT THUM TMPL')
+
+entry_ignore_list = Entry(top_section, textvariable=ignore_list_string)
+entry_ignore_list.bind('<Return>', lambda e: update_display())
+button_update = Button(top_section, text='Update', command=update_display)
+
 
 entry_signed_long = Entry(bottom_section, textvariable=signed_long)
 entry_unsigned_long = Entry(bottom_section, textvariable=unsigned_long)
 entry_hexed_long = Entry(bottom_section, textvariable=hexed_long)
 entry_step = Entry(bottom_section, textvariable=step)
 
+entry_ignore_list.pack(fill=X, expand=TRUE, side='left')
+button_update.pack(side='right')
+
+top_section.pack(side=TOP, fill=X)
 t.pack(fill=BOTH, expand = YES)
 bottom_section.pack(side=BOTTOM)
 
