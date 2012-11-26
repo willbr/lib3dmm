@@ -87,9 +87,14 @@ def update_selection_value():
         selection_value[::-1]))
     disable()
 
-def dump_ggae():
+def dump_quad():
     m = lib3dmm.Movie(movie_file_name)
+    section_dumps = []
     for quad in m.quads:
+        if quad.type == b'THUM':
+            continue
+
+        section_dumps.append(quad.type)
         if quad.type == b'GGAE':
             data_file = io.BytesIO(quad.data)
             read = functools.partial(lib3dmm.read_struct, file=data_file)
@@ -106,14 +111,18 @@ def dump_ggae():
                 index.append((o, l))
 
             # seek to data and read
-            section_dumps = []
             for o,l in index:
                 data_file.seek(o + 20)
                 d = data_file.read(l)
                 section_dumps.append(lib3dmm.hex_dump(d,
                     quad.section_offset + o + 20))
+        else:
+            data_file = io.BytesIO(quad.data)
+            d = data_file.read(quad.section_length)
+            section_dumps.append(lib3dmm.hex_dump(d,
+                quad.section_offset))
 
-            return section_dumps
+    return section_dumps
 
 def update_display(new_dump):
     global current_data
@@ -124,6 +133,9 @@ def update_display(new_dump):
     enable()
     new_data = {}
     for section in new_dump:
+        if type(section) == bytes:
+            t.insert('end-1c', section.decode('ascii') + '\n\n')
+            continue
         for offset, data, characters in section:
             t.insert('end-1c', '{:8X} | '.format(offset))
             for i in range(0, 16, 4):
@@ -158,11 +170,16 @@ def update_display(new_dump):
 
 def check_if_modified():
     global last_time_modified
-    time_modified = os.stat(movie_file_name).st_mtime
-    if time_modified != last_time_modified:
-        current_dump = dump_ggae()
-        update_display(current_dump)
-        last_time_modified = time_modified
+    try:
+        time_modified = os.stat(movie_file_name).st_mtime
+        if time_modified != last_time_modified:
+            current_dump = dump_quad()
+            update_display(current_dump)
+            last_time_modified = time_modified
+    except FileNotFoundError:
+        # 3DMM uses a temp file while saving
+        pass
+
     root.after(1000, check_if_modified)
 
 def update_file(e):
@@ -262,7 +279,7 @@ entry_unsigned_long = Entry(bottom_section, textvariable=unsigned_long)
 entry_hexed_long = Entry(bottom_section, textvariable=hexed_long)
 entry_step = Entry(bottom_section, textvariable=step)
 
-t.pack(fill=Y)
+t.pack(fill=BOTH, expand = YES)
 bottom_section.pack(side=BOTTOM)
 
 entry_signed_long.pack()
