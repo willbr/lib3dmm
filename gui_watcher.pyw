@@ -95,6 +95,8 @@ def dump_quad():
     section_dumps = []
     ignore_list = [s.upper() for s in ignore_list_string.get().split()]
     for quad in m.quads:
+        parsed = False
+        print_header = True
         if quad.type.decode('ascii').strip() in ignore_list:
             continue
 
@@ -102,12 +104,9 @@ def dump_quad():
         data_file = io.BytesIO(quad.data)
         read = functools.partial(lib3dmm.read_struct, file=data_file)
 
-        d = data_file.read(20)
-        section_dumps.append(lib3dmm.hex_dump(d,
-            quad.section_offset))
-        data_file.seek(0)
 
         if quad.type == b'GST ':
+            parsed = True
             magic = read('L')
             gst_type = read('L')
             count = read('L')
@@ -176,6 +175,7 @@ def dump_quad():
                 print ('unknown gst_type: {}'.format(gst_type))
 
         elif quad.type == b'GGAE':
+            parsed = True
             magic = read('L')
             count = read('L')
             offset = read('L')
@@ -194,8 +194,54 @@ def dump_quad():
                 d = data_file.read(l)
                 section_dumps.append(lib3dmm.hex_dump(d,
                     quad.section_offset + o + 20))
-        else:
+        elif quad.type == b'ACTR':
+            parsed = False
+            actor = {}
 
+            magic = read('L')
+
+            actor['pos_x'] = read('L')
+            actor['pos_y'] = read('L')
+            actor['pos_z'] = read('L')
+            actor['instance'] = read('L')
+
+            actor['frame a'] = read('L')
+            actor['frame b'] = read('L')
+            actor['unknown_g'] = read('L')
+            actor['unknown_h'] = read('L')
+
+            actor['unknown_i'] = read('4s')[::-1]
+            actor['actor id'] = read('L')
+
+            print(pformat (actor))
+        elif quad.type == b'PATH':
+            parsed = False
+            print_header = False
+            path = {}
+
+            magic = read('L')
+            path['unknown id'] = read('L')
+            count = read('L')
+            steps = []
+            for i in range(count):
+                step = {}
+                step['pos x'] = read('L')
+                step['pos y'] = read('L')
+                step['pos z'] = read('L')
+                step['unknown rot?'] = read('L')
+                steps.append(step)
+            path['steps'] = steps
+            print(pformat (path))
+        else:
+            print('unknown quad: %s' % quad.type)
+
+        if print_header == True:
+            data_file.seek(0)
+            d = data_file.read(20)
+            section_dumps.append(lib3dmm.hex_dump(d,
+                quad.section_offset))
+
+        if not parsed:
             data_file.seek(0)
             d = data_file.read(quad.section_length)
             section_dumps.append(lib3dmm.hex_dump(d,
@@ -345,11 +391,25 @@ root.bind('<Return>', update_file)
 
 root.bind('j', lambda e: change_value('down'))
 root.bind('k', lambda e: change_value('up'))
+root.bind('d', lambda e: change_step('up'))
+root.bind('f', lambda e: change_step('down'))
 root.bind('x', lambda e: change_value_to_zero())
 root.bind('u', lambda e: change_value_reset())
 
 #root.bind('<KeyPres-a>', lambda e: print('key'))
 #root.bind('<KeyRelease-a>', lambda e: print('key'))
+
+def change_step(direction):
+    global step_power
+    if direction == 'up':
+        step_power += 4
+        if step_power > 28: step_power = 28
+    else:
+        step_power -= 4
+        if step_power < 0: step_power = 0
+
+    step.set(2 ** step_power)
+
 
 top_section = Frame()
 bottom_section = Frame()
@@ -357,8 +417,9 @@ bottom_section = Frame()
 signed_long = IntVar()
 unsigned_long = IntVar()
 step = IntVar(value=1)
+step_power = 0
 hexed_long = IntVar()
-ignore_list_string = StringVar(value='ACTR GGAE GGFR GGST GST PATH SCEN TDT THUM TMPL')
+ignore_list_string = StringVar(value='MVIE GGAE GGFR GGST GST ACTR SCEN TDT THUM TMPL')
 
 entry_ignore_list = Entry(top_section, textvariable=ignore_list_string)
 entry_ignore_list.bind('<Return>', lambda e: update_display())
