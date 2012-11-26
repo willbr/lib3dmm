@@ -1,6 +1,5 @@
 from tkinter import *
 from tkinter import ttk
-from collections import namedtuple
 import lib3dmm
 
 class Application(Frame):
@@ -16,12 +15,16 @@ class Application(Frame):
         self.tree.heading('string', text='String')
         self.tree.heading('offset', text='Offset')
         self.tree.heading('length', text='Length')
-        self.tree.grid(row=1, column=1)
+        self.tree.grid(row=0, column=0, sticky='news')
 
         self.tree_scroll = Scrollbar(self)
         self.tree.config(yscrollcommand=self.tree_scroll.set)
         self.tree_scroll.config(command=self.tree.yview)
-        self.tree_scroll.grid(row=1, column=2, sticky=N+S)
+        self.tree_scroll.grid(row=0, column=1, sticky='news')
+        self.rowconfigure(0, weight=1) 
+
+        self.columnconfigure(0, weight=1) 
+        self.columnconfigure(1, weight=0) 
 
     def load_movie(self, name):
         self.movie = lib3dmm.Movie(name)
@@ -34,7 +37,10 @@ class Application(Frame):
                 'end',
                 text=quad.type,
                 open=True,
-                values=(quad.id, quad.string, quad.section_offset, quad.section_length))
+                values=(quad.id,
+                    quad.string,
+                    quad.section_offset,
+                    quad.section_length))
         for ref in quad.references:
             child = self.movie.get_quad(ref)
             self.walk_quad_tree(child, id)
@@ -45,7 +51,8 @@ class Application(Frame):
 
 
 app = Application()
-app.master.title('Sample application')
+app.pack(fill='both', expand=True)
+app.master.title('Movie File Layout')
 app.load_movie('test_movie.3mm')
 app.mainloop()
 
