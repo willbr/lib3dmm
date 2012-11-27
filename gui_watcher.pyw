@@ -302,6 +302,38 @@ def dump_quad():
                 d = data_file.read(l)
                 quad_dumps.append(lib3dmm.hex_dump(d,
                     quad.section_offset + o + header_length))
+        elif quad.type == b'GGST':
+            dump_section = False
+            magic = read('L')
+            count = read('L')
+            offset = read('L')
+            data_file.seek(header_length + offset)
+
+            # read index
+            data_file.seek(offset + header_length)
+            index = []
+            for i in range(count):
+                o = read('L')
+                l = read('L')
+                index.append((o, l))
+
+            # seek to data and read
+            for o,l in index:
+                data_file.seek(o + header_length)
+                d = data_file.read(l)
+                quad_dumps.append(lib3dmm.hex_dump(d,
+                    quad.section_offset + o + header_length))
+
+                data_file.seek(o + header_length)
+                unknown = {}
+                unknown['unknown a'] = read('L')
+                unknown['unknown b'] = read('L')
+                unknown['unknown c'] = read('L')
+                unknown['unknown d'] = read('L')
+                unknown['unknown e'] = read('4s')[::-1]
+                unknown['unknown f'] = read('L')
+                print(pformat(unknown))
+
         else:
             print('unknown quad: %s' % quad.type)
 
@@ -511,7 +543,7 @@ unsigned_long = IntVar()
 step = IntVar(value=1)
 step_power = 0
 hexed_long = IntVar()
-ignore_list_string = StringVar(value='MVIE PATH GGST GST ACTR SCEN TDT THUM TMPL')
+ignore_list_string = StringVar(value='MVIE PATH GGFR GST ACTR SCEN TDT THUM TMPL GGAE')
 
 entry_ignore_list = Entry(top_section, textvariable=ignore_list_string)
 button_update = Button(top_section, text='Update', command=update_display)
