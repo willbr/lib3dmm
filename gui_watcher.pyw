@@ -334,6 +334,14 @@ def dump_quad():
                 unknown['unknown f'] = read('L')
                 print(pformat(unknown))
 
+        elif quad.type == b'SCEN':
+            print_header = False
+            magic = read('L')
+            scene = {}
+            scene['frame count'] = read('L')
+            scene['unknown b'] = read('L')
+            scene['dissolve'] = read('L')
+            print(pformat(scene))
         else:
             print('unknown quad: %s' % quad.type)
 
@@ -543,7 +551,7 @@ unsigned_long = IntVar()
 step = IntVar(value=1)
 step_power = 0
 hexed_long = IntVar()
-ignore_list_string = StringVar(value='MVIE PATH GGFR GST ACTR SCEN TDT THUM TMPL GGAE')
+ignore_list_string = StringVar(value='MVIE PATH GGFR GST ACTR GGST TDT THUM TMPL GGAE')
 
 entry_ignore_list = Entry(top_section, textvariable=ignore_list_string)
 button_update = Button(top_section, text='Update', command=update_display)
