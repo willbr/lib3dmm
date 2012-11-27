@@ -18,6 +18,7 @@ ggae_sections = {
         3: 'unknown',
         4: 'squish',
         5: 'size',
+        6: 'unknown',
         7: 'move',
         8: 'unknown',
         10: 'unknown',
@@ -194,6 +195,7 @@ def dump_quad():
                 print ('unknown gst_type: {}'.format(gst_type))
 
         elif quad.type == b'GGAE':
+            dump_section = False
             magic = read('L')
             count = read('L')
             offset = read('L')
@@ -356,6 +358,14 @@ def dump_quad():
             tdt['unknown e'] = read('4s')[::-1]
             tdt['font'] = read('L')
             print(pformat(tdt))
+        elif quad.type == b'TMPL':
+            print_header = False
+            tmpl = {}
+            magic = read('L')
+            tmpl['unknown b'] = read('L')
+            tmpl['unknown c'] = read('L')
+            tmpl['unknown d'] = read('L')
+            print(pformat(tmpl))
         else:
             print('unknown quad: %s' % quad.type)
 
@@ -565,7 +575,7 @@ unsigned_long = IntVar()
 step = IntVar(value=1)
 step_power = 0
 hexed_long = IntVar()
-ignore_list_string = StringVar(value='MVIE SCEN PATH GGFR GST ACTR GGST THUM TMPL GGAE')
+ignore_list_string = StringVar(value='MVIE SCEN PATH GGFR GST ACTR GGST THUM TDT GGAE')
 
 entry_ignore_list = Entry(top_section, textvariable=ignore_list_string)
 button_update = Button(top_section, text='Update', command=update_display)
