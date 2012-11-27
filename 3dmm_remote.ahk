@@ -7,12 +7,18 @@ click(location,count=1) {
     global pos
     x := pos[location][1]
     y := pos[location][2]
+
     SetMouseDelay, -1
-    WinGet, active_id, ID, A
+
+    CoordMode, Mouse, Screen
     MouseGetPos, oldx, oldy
+
     WinActivate, ahk_class 3DMOVIE
+
+    CoordMode, Mouse, Relative
     Send, {Click %x% %y% %count%}
-    WinActivate, ahk_id %active_id%
+
+    CoordMode, Mouse, Screen
     MouseMove, %oldx%, %oldy%
 }
 

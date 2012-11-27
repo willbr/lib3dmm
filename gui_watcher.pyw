@@ -74,6 +74,7 @@ def button_1(e):
             selection_offset = offset
             selection_value = current_data[offset]
             update_selection_value()
+    t.focus()
     return "break"
 
 def update_selection_value():
@@ -329,8 +330,28 @@ def update_file(e):
         print('file write failed')
     # run test movie
     system('start test_movie.3mm')
+    execute_post_update_commands()
     time.sleep(0.2)
     root.focus_force()
+
+def execute_post_update_commands():
+    aliases = {
+            'nf': 'next-frame',
+            'ns': 'next-scene',
+            }
+    lines = text_post_update_commands.get('1.0', 'end')
+    for line in lines.split('\n'):
+        line = line.strip()
+        if line == '':
+            continue
+        try:
+            cmd, args = line.split(maxsplit=1)
+        except ValueError:
+            cmd, args = line, ''
+        finally:
+            if cmd in aliases.keys():
+                cmd = aliases[cmd]
+            system('start 3dmm_remote.ahk %s %s' % (cmd, args))
 
 def change_value_reset():
     global selection_value
@@ -384,21 +405,6 @@ t.tag_config('diff', background='yellow')
 t.tag_config('selection', background='grey')
 
 
-t.bind('<Double-Button-1>', double_button_1)
-t.bind('<Button-1>', button_1)
-root.bind('<Escape>', lambda e: root.focus())
-root.bind('<Return>', update_file)
-
-root.bind('j', lambda e: change_value('down'))
-root.bind('k', lambda e: change_value('up'))
-root.bind('d', lambda e: change_step('up'))
-root.bind('f', lambda e: change_step('down'))
-root.bind('x', lambda e: change_value_to_zero())
-root.bind('u', lambda e: change_value_reset())
-
-#root.bind('<KeyPres-a>', lambda e: print('key'))
-#root.bind('<KeyRelease-a>', lambda e: print('key'))
-
 def change_step(direction):
     global step_power
     if direction == 'up':
@@ -413,6 +419,7 @@ def change_step(direction):
 
 top_section = Frame()
 bottom_section = Frame()
+debug_section = Frame(bottom_section)
 
 signed_long = IntVar()
 unsigned_long = IntVar()
@@ -422,27 +429,49 @@ hexed_long = IntVar()
 ignore_list_string = StringVar(value='MVIE GGAE GGFR GGST GST ACTR SCEN TDT THUM TMPL')
 
 entry_ignore_list = Entry(top_section, textvariable=ignore_list_string)
-entry_ignore_list.bind('<Return>', lambda e: update_display())
 button_update = Button(top_section, text='Update', command=update_display)
 
 
-entry_signed_long = Entry(bottom_section, textvariable=signed_long)
-entry_unsigned_long = Entry(bottom_section, textvariable=unsigned_long)
-entry_hexed_long = Entry(bottom_section, textvariable=hexed_long)
-entry_step = Entry(bottom_section, textvariable=step)
+entry_signed_long = Entry(debug_section, textvariable=signed_long)
+entry_unsigned_long = Entry(debug_section, textvariable=unsigned_long)
+entry_hexed_long = Entry(debug_section, textvariable=hexed_long)
+entry_step = Entry(debug_section, textvariable=step)
+
+text_post_update_commands = ScrolledText(bottom_section, font='TkFixedFont',
+        width=20, height=10,
+        wrap='none',
+        padx=5, pady=5)
 
 entry_ignore_list.pack(fill=X, expand=TRUE, side='left')
 button_update.pack(side='right')
-
 top_section.pack(side=TOP, fill=X)
+
 t.pack(fill=BOTH, expand = YES)
-bottom_section.pack(side=BOTTOM)
+
+bottom_section.pack(side=BOTTOM, fill=BOTH, expand=YES)
+debug_section.pack(side=LEFT, fill=Y)
 
 entry_signed_long.pack()
 entry_unsigned_long.pack()
 entry_hexed_long.pack()
-entry_step.pack(side=RIGHT)
+entry_step.pack()
+text_post_update_commands.pack(side=RIGHT, fill=BOTH)
 
+entry_ignore_list.bind('<Return>', lambda e: update_display())
+
+t.bind('<Button-1>', button_1)
+
+root.bind('<Escape>', lambda e: t.focus())
+t.bind('<Return>', update_file)
+t.bind('j', lambda e: change_value('down'))
+t.bind('k', lambda e: change_value('up'))
+t.bind('d', lambda e: change_step('up'))
+t.bind('f', lambda e: change_step('down'))
+t.bind('x', lambda e: change_value_to_zero())
+t.bind('u', lambda e: change_value_reset())
+
+#root.bind('<KeyPres-a>', lambda e: print('key'))
+#root.bind('<KeyRelease-a>', lambda e: print('key'))
 
 check_if_modified()
 
