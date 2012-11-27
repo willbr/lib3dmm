@@ -316,7 +316,6 @@ def check_if_modified():
 def update_file(e):
     if selection_offset == None:
         return
-    print('update file')
     # run none
     system('start none.3mm')
     time.sleep(0.1)
@@ -332,7 +331,7 @@ def update_file(e):
     system('start test_movie.3mm')
     execute_post_update_commands()
     time.sleep(0.2)
-    root.focus_force()
+    t.focus_force()
 
 def execute_post_update_commands():
     aliases = {
