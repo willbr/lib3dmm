@@ -555,6 +555,7 @@ def execute_post_update_commands():
             'nf': 'next-frame',
             'ns': 'next-scene',
             's': 'sleep',
+            'f': 'frame',
             }
     lines = text_post_update_commands.get('1.0', 'end')
     for line in lines.split('\n'):
@@ -575,6 +576,16 @@ def execute_post_update_commands():
                 except ValueError:
                     duration = 1
                 time.sleep(duration)
+            elif cmd == 'frame':
+                try:
+                    frame_number = int(args)
+                    frame_number -= 1
+                    if frame_number > 1:
+                        system('start 3dmm_remote.ahk %s %d' %
+                                ('next-frame', frame_number))
+                except ValueError:
+                    print('failed to parse command frame arg: %s' %
+                            args)
             else:
                 system('start 3dmm_remote.ahk %s %s' % (cmd, args))
 
