@@ -226,9 +226,9 @@ def dump_quad():
             steps = []
             for i in range(count):
                 step = {}
-                step['pos x'] = read('L')
-                step['pos y'] = read('L')
-                step['pos z'] = read('L')
+                step['pos x?'] = read('L')
+                step['pos y?'] = read('L')
+                step['pos z?'] = read('L')
                 step['unknown rot?'] = read('L')
                 steps.append(step)
             path['steps'] = steps
@@ -337,6 +337,7 @@ def execute_post_update_commands():
     aliases = {
             'nf': 'next-frame',
             'ns': 'next-scene',
+            's': 'sleep',
             }
     lines = text_post_update_commands.get('1.0', 'end')
     for line in lines.split('\n'):
@@ -350,7 +351,15 @@ def execute_post_update_commands():
         finally:
             if cmd in aliases.keys():
                 cmd = aliases[cmd]
-            system('start 3dmm_remote.ahk %s %s' % (cmd, args))
+
+            if cmd == 'sleep':
+                try:
+                    duration = float(args)
+                except ValueError:
+                    duration = 1
+                time.sleep(duration)
+            else:
+                system('start 3dmm_remote.ahk %s %s' % (cmd, args))
 
 def change_value_reset():
     global selection_value
