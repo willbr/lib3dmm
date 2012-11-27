@@ -251,7 +251,7 @@ def dump_quad():
                     section['scale x'] = SCALE_OFFSET - read('L')
                     section['scale y'] = SCALE_OFFSET - read('L')
                     section['scale z'] = SCALE_OFFSET - read('L')
-                    print(pformat(section))
+                    #print(pformat(section))
                 elif id == 5:
                     section['scale'] = SCALE_OFFSET - read('L')
                     #print(pformat(section))
@@ -283,8 +283,22 @@ def dump_quad():
                 elif id == 10:
                     pass
                 elif id == 12:
-                    section['unknown f'] = read('L')
-                    #print(pformat(section))
+                    section['rot a'] = read('L')
+                    section['rot b'] = read('L')
+                    section['rot c'] = read('L')
+
+                    section['rot d'] = read('L')
+                    section['rot e'] = read('L')
+                    section['rot f'] = read('L')
+
+                    section['rot g'] = read('L')
+                    section['rot h'] = read('L')
+                    section['rot i'] = read('L')
+
+                    section['pos x'] = read('L')
+                    section['pos y'] = read('L')
+                    section['pos z'] = read('L')
+                    print(pformat(section))
                 else:
                     print('unkown id: %d' % id)
 
