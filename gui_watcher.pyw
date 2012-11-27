@@ -560,9 +560,10 @@ def update_file(e):
         print('file write failed')
     # run test movie
     system('start test_movie.3mm')
-    execute_post_update_commands()
+    cmd = execute_post_update_commands()
     time.sleep(0.2)
-    t.focus_force()
+    if cmd != 'play':
+        t.focus_force()
 
 def execute_post_update_commands():
     aliases = {
@@ -602,6 +603,7 @@ def execute_post_update_commands():
                             args)
             else:
                 system('start 3dmm_remote.ahk %s %s' % (cmd, args))
+    return cmd
 
 def change_value_reset():
     global selection_value

@@ -26,6 +26,7 @@ click(location,count=1) {
 pos := {}
 pos["next-frame"] := [250, 450]
 pos["next-scene"] := [250, 475]
+pos["play"] := [315, 460]
 pos["actors"] := [200, 40]
 pos["props"] := [200, 40]
 pos["sounds"] := [400, 40]
