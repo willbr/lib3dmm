@@ -15,15 +15,18 @@ ggae_sections = {
         0: 'init',
         1: 'action',
         2: 'outfit',
-        3: 'unknown',
+        3: 'rotation reset?',
         4: 'squish',
         5: 'size',
-        6: 'unknown',
+        6: 'sound',
         7: 'move',
         8: 'unknown',
+        9: 'single frame move',
         10: 'unknown',
         12: 'rotation?',
         }
+
+SCALE_OFFSET = 65536
 
 def clear():
     enable()
@@ -210,9 +213,81 @@ def dump_quad():
 
             # seek to data and read
             for o,l in index:
+                # section header
                 data_file.seek(o + header_length)
                 id = read('L')
                 quad_dumps.append(ggae_sections[id])
+                section = {}
+                section['frame'] = read('L')
+                section['unknown c'] = read('L')
+                section['unknown d'] = read('L')
+                section['frame creation offset'] = read('L')
+
+
+                # section body
+                if id == 0:
+                    section['pos x'] = read('L')
+                    section['pos y'] = read('L')
+                    section['pos z'] = read('L')
+                    section['rotation pitch'] = read('H')
+                    section['rotation yaw'] = read('H')
+                    section['rotation roll'] = read('H')
+                    section['unknown l'] = read('H')
+                    #print(pformat(section))
+                elif id == 1:
+                    section['action id'] = read('L')
+                    section['action frame'] = read('L')
+                    #print(pformat(section))
+                elif id == 2:
+                    section['part'] = read('L')
+                    section['outfit'] = read('L')
+                    section['unknown h'] = read('L')
+                    section['unknown i'] = read('L')
+                    section['unknown j'] = read('L')
+                    section['label'] = read('4s')[::-1]
+                    section['mtrl id'] = read('L')
+                    #print(pformat(section))
+                elif id == 4:
+                    section['scale x'] = SCALE_OFFSET - read('L')
+                    section['scale y'] = SCALE_OFFSET - read('L')
+                    section['scale z'] = SCALE_OFFSET - read('L')
+                    print(pformat(section))
+                elif id == 5:
+                    section['scale'] = SCALE_OFFSET - read('L')
+                    #print(pformat(section))
+                elif id == 6:
+                    section['loop'] = read('L')
+                    section['unknown g'] = read('L')
+                    section['volume'] = read('L')
+                    section['unknown i'] = read('L')
+                    section['channel'] = read('L')
+                    section['stopper'] = read('L')
+                    section['unknown l'] = read('L')
+                    section['unknown m'] = read('L')
+                    section['data set'] = read('L')
+                    section['label'] = read('4s')[::-1]
+                    section['sound id'] = read('L')
+                    #print(pformat(section))
+                elif id == 7:
+                    section['position x'] = read('l')
+                    section['position y'] = read('l')
+                    section['position z'] = read('l')
+                    #print(pformat(section))
+                elif id == 8:
+                    pass
+                elif id == 9:
+                    section['position x'] = read('l')
+                    section['position y'] = read('l')
+                    section['position z'] = read('l')
+                    #print(pformat(section))
+                elif id == 10:
+                    pass
+                elif id == 12:
+                    section['unknown f'] = read('L')
+                    #print(pformat(section))
+                else:
+                    print('unkown id: %d' % id)
+
                 data_file.seek(o + header_length)
                 d = data_file.read(l)
                 quad_dumps.append(lib3dmm.hex_dump(d,
@@ -438,6 +513,7 @@ def update_dump(new_dump):
     current_data = new_data
 
 def update_display():
+    print('\n' + "*" * 60 + '\n')
     current_dump = dump_quad()
     update_dump(current_dump)
 
@@ -575,7 +651,7 @@ unsigned_long = IntVar()
 step = IntVar(value=1)
 step_power = 0
 hexed_long = IntVar()
-ignore_list_string = StringVar(value='MVIE SCEN PATH GGFR GST ACTR GGST THUM TDT GGAE')
+ignore_list_string = StringVar(value='MVIE SCEN PATH GGFR GST ACTR GGST THUM TDT TMPL')
 
 entry_ignore_list = Entry(top_section, textvariable=ignore_list_string)
 button_update = Button(top_section, text='Update', command=update_display)
