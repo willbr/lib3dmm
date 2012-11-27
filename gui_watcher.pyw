@@ -346,6 +346,16 @@ def dump_quad():
             print_header = False
             magic = read('L')
             unknown = read('L')
+        elif quad.type == b'TDT ':
+            print_header = False
+            tdt = {}
+            magic = read('L')
+            tdt['text shape'] = read('L')
+            tdt['font set??'] = read('L')
+            tdt['unknown d'] = read('L')
+            tdt['unknown e'] = read('4s')[::-1]
+            tdt['font'] = read('L')
+            print(pformat(tdt))
         else:
             print('unknown quad: %s' % quad.type)
 
@@ -555,7 +565,7 @@ unsigned_long = IntVar()
 step = IntVar(value=1)
 step_power = 0
 hexed_long = IntVar()
-ignore_list_string = StringVar(value='SCEN PATH GGFR GST ACTR GGST TDT THUM TMPL GGAE')
+ignore_list_string = StringVar(value='MVIE SCEN PATH GGFR GST ACTR GGST THUM TMPL GGAE')
 
 entry_ignore_list = Entry(top_section, textvariable=ignore_list_string)
 button_update = Button(top_section, text='Update', command=update_display)
