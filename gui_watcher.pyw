@@ -11,6 +11,19 @@ from os import system
 
 pformat = pprint.PrettyPrinter(indent=4).pformat
 
+ggae_sections = {
+        0: 'init',
+        1: 'action',
+        2: 'outfit',
+        3: 'unknown',
+        4: 'squish',
+        5: 'size',
+        7: 'move',
+        8: 'unknown',
+        10: 'unknown',
+        12: 'rotation?',
+        }
+
 def clear():
     enable()
     t.delete('1.0', 'end')
@@ -96,23 +109,24 @@ def dump_quad():
     section_dumps = []
     ignore_list = [s.upper() for s in ignore_list_string.get().split()]
     for quad in m.quads:
-        parsed = False
-        print_header = True
         if quad.type.decode('ascii').strip() in ignore_list:
             continue
 
-        section_dumps.append(quad.type)
+        dump_section = True
+        print_header = True
+        header_length = 20
+        quad_dumps = []
+
         data_file = io.BytesIO(quad.data)
         read = functools.partial(lib3dmm.read_struct, file=data_file)
 
 
         if quad.type == b'GST ':
-            parsed = True
             magic = read('L')
             gst_type = read('L')
             count = read('L')
             offset = read('L')
-            data_file.seek(offset + 20)
+            data_file.seek(offset + header_length)
 
             if gst_type == 0x20:
                 actors = []
@@ -130,33 +144,33 @@ def dump_quad():
 
                 length = 4 * 8
                 for i in range(count):
-                    o = offset + 20 + i * length
+                    o = offset + header_length + i * length
                     data_file.seek(o)
                     d = data_file.read(length)
-                    section_dumps.append(lib3dmm.hex_dump(d,
+                    quad_dumps.append(lib3dmm.hex_dump(d,
                         quad.section_offset + o))
 
                 for i in range(len(actors)):
                     actor = actors[i]
-                    data_file.seek(20 + actor['name_offset'])
+                    data_file.seek(header_length + actor['name_offset'])
                     length = read('B')
                     actor['name'] = read('%ds' % length)
 
                 print(pformat (actors))
 
             elif gst_type == 0x08:
-                data_file.seek(20)
+                data_file.seek(header_length)
                 d = data_file.read(quad.section_length -
                         (quad.section_length -offset))
-                section_dumps.append(lib3dmm.hex_dump(d,
-                    quad.section_offset + 20))
+                quad_dumps.append(lib3dmm.hex_dump(d,
+                    quad.section_offset + header_length))
 
-                data_file.seek(20 + offset)
+                data_file.seek(header_length + offset)
                 d = data_file.read(quad.section_length)
-                section_dumps.append(lib3dmm.hex_dump(d,
-                    quad.section_offset + 20 + offset))
+                quad_dumps.append(lib3dmm.hex_dump(d,
+                    quad.section_offset + header_length + offset))
 
-                data_file.seek(20 + offset)
+                data_file.seek(header_length + offset)
                 index = []
                 for i in range(count):
                     offset = read('L')
@@ -165,7 +179,7 @@ def dump_quad():
 
                 strings = []
                 for o, id in index:
-                    o += 20
+                    o += header_length
                     data_file.seek(o)
                     length = read('B')
                     name = read('%ds' % length)
@@ -176,13 +190,12 @@ def dump_quad():
                 print ('unknown gst_type: {}'.format(gst_type))
 
         elif quad.type == b'GGAE':
-            parsed = True
             magic = read('L')
             count = read('L')
             offset = read('L')
 
             # read index
-            data_file.seek(offset + 20)
+            data_file.seek(offset + header_length)
             index = []
             for i in range(count):
                 o = read('L')
@@ -191,12 +204,14 @@ def dump_quad():
 
             # seek to data and read
             for o,l in index:
-                data_file.seek(o + 20)
+                data_file.seek(o + header_length)
+                id = read('L')
+                quad_dumps.append(ggae_sections[id])
+                data_file.seek(o + header_length)
                 d = data_file.read(l)
-                section_dumps.append(lib3dmm.hex_dump(d,
-                    quad.section_offset + o + 20))
+                quad_dumps.append(lib3dmm.hex_dump(d,
+                    quad.section_offset + o + header_length))
         elif quad.type == b'ACTR':
-            parsed = False
             actor = {}
 
             magic = read('L')
@@ -216,7 +231,6 @@ def dump_quad():
 
             print(pformat (actor))
         elif quad.type == b'PATH':
-            parsed = False
             print_header = False
             path = {}
 
@@ -233,20 +247,76 @@ def dump_quad():
                 steps.append(step)
             path['steps'] = steps
             print(pformat (path))
+        elif quad.type == b'GGFR':
+            dump_section = False
+            magic = read('L')
+            count = read('L')
+            offset = read('L')
+            data_file.seek(header_length + offset)
+
+            # read index
+            data_file.seek(offset + header_length)
+            index = []
+            for i in range(count):
+                o = read('L')
+                l = read('L')
+                index.append((o, l))
+
+            # seek to data and read
+            for o,l in index:
+                data_file.seek(o + header_length)
+                frame = read('L')
+                id = read('L')
+                if id == 1:
+                    sound = {}
+                    sound['frame'] = frame
+                    sound['section id'] = id
+                    sound['volume'] = read('L')
+                    sound['unknown d'] = read('L')
+                    sound['looping'] = read('L')
+                    sound['unknown f'] = read('L')
+                    sound['unknown g'] = read('L')
+                    sound['unknown h'] = read('L')
+                    sound['unknown i'] = read('L')
+                    sound['unknown j'] = read('4s')[::-1]
+                    sound['sound id'] = read('L')
+                    quad_dumps.append('sound')
+                    print(pformat(sound))
+                elif id == 3:
+                    camera_angle = {}
+                    camera_angle['frame'] = frame
+                    camera_angle['section id'] = id
+                    camera_angle['camera angle id'] = read('L')
+                    quad_dumps.append('camera angle')
+                    print(pformat(camera_angle))
+                else:
+                    quad_dumps.append('unknown GGFR section')
+
+
+
+                data_file.seek(o + header_length)
+                d = data_file.read(l)
+                quad_dumps.append(lib3dmm.hex_dump(d,
+                    quad.section_offset + o + header_length))
         else:
             print('unknown quad: %s' % quad.type)
 
+        section_dumps.append(quad.type)
+
         if print_header == True:
             data_file.seek(0)
-            d = data_file.read(20)
+            d = data_file.read(header_length)
+            section_dumps.append('header')
             section_dumps.append(lib3dmm.hex_dump(d,
                 quad.section_offset))
 
-        if not parsed:
+        if dump_section:
             data_file.seek(0)
             d = data_file.read(quad.section_length)
             section_dumps.append(lib3dmm.hex_dump(d,
                 quad.section_offset))
+
+        section_dumps.extend(quad_dumps)
 
     return section_dumps
 
@@ -263,6 +333,9 @@ def update_dump(new_dump):
         if type(section) == bytes:
             current_quad = section.decode('ascii')
             t.insert('end-1c', current_quad + '\n\n')
+            continue
+        elif type(section) == str:
+            t.insert('end-1c', ' ' * 11 + section + '\n')
             continue
 
         for offset, data, characters in section:
@@ -434,7 +507,7 @@ unsigned_long = IntVar()
 step = IntVar(value=1)
 step_power = 0
 hexed_long = IntVar()
-ignore_list_string = StringVar(value='MVIE GGAE GGFR GGST GST ACTR SCEN TDT THUM TMPL')
+ignore_list_string = StringVar(value='MVIE PATH GGST GST ACTR SCEN TDT THUM TMPL')
 
 entry_ignore_list = Entry(top_section, textvariable=ignore_list_string)
 button_update = Button(top_section, text='Update', command=update_display)
