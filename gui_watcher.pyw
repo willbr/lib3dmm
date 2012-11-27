@@ -79,7 +79,11 @@ def button_1(e):
     if 0 <= long_offset <= 3 and hit:
         # store offset
         line = t.get('%s linestart' % c, '%s lineend' % c)
-        line_offset = int(line[:8], 16) if line != '' else None
+        try:
+            line_offset = int(line[:8], 16)
+        except ValueError:
+            return "break"
+
         offset = line_offset + (4 * long_offset)
 
         if selection.strip() != '':
