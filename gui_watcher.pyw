@@ -7,7 +7,11 @@ import functools
 import struct
 import time
 import pprint
+from collections import namedtuple
 from os import system
+import math
+
+Vec3 = namedtuple('Vec3', ['x', 'y', 'z'])
 
 pformat = pprint.PrettyPrinter(indent=4).pformat
 
@@ -27,6 +31,7 @@ ggae_sections = {
         }
 
 SCALE_OFFSET = 65536
+ROTATION_OFFSET = 65536
 
 def clear():
     enable()
@@ -108,6 +113,7 @@ def update_selection_value():
     t.replace(selection_start, selection_end, hex_data, 'selection')
     signed_long.set(struct.unpack('<l', selection_value)[0])
     unsigned_long.set(struct.unpack('<L', selection_value)[0])
+    double.set(struct.unpack('<f', selection_value)[0])
     hexed_long.set('0X' + ''.join('{:02X}'.format(i) for i in
         selection_value[::-1]))
     disable()
@@ -218,17 +224,15 @@ def dump_quad():
                 id = read('L')
                 quad_dumps.append(ggae_sections[id])
                 section = {}
-                section['frame'] = read('L')
-                section['unknown c'] = read('L')
-                section['unknown d'] = read('L')
-                section['frame creation offset'] = read('L')
+                section['_a frame'] = read('L')
+                section['_b unknown c'] = read('L')
+                section['_c unknown d'] = read('L')
+                section['_d frame creation offset'] = read('L')
 
 
                 # section body
                 if id == 0:
-                    section['pos x'] = read('L')
-                    section['pos y'] = read('L')
-                    section['pos z'] = read('L')
+                    section['offset vector'] = Vec3(read('l'), read('l'), read('l'))
                     section['rotation pitch'] = read('H')
                     section['rotation yaw'] = read('H')
                     section['rotation roll'] = read('H')
@@ -269,36 +273,28 @@ def dump_quad():
                     section['sound id'] = read('L')
                     #print(pformat(section))
                 elif id == 7:
-                    section['position x'] = read('l')
-                    section['position y'] = read('l')
-                    section['position z'] = read('l')
+                    section['offset vector'] = Vec3(read('l'), read('l'), read('l'))
                     #print(pformat(section))
                 elif id == 8:
                     pass
                 elif id == 9:
-                    section['position x'] = read('l')
-                    section['position y'] = read('l')
-                    section['position z'] = read('l')
+                    section['offset vector'] = Vec3(read('l'), read('l'), read('l'))
                     #print(pformat(section))
                 elif id == 10:
                     pass
-                elif id == 12:
-                    section['rot a'] = read('L')
-                    section['rot b'] = read('L')
-                    section['rot c'] = read('L')
-
-                    section['rot d'] = read('L')
-                    section['rot e'] = read('L')
-                    section['rot f'] = read('L')
-
-                    section['rot g'] = read('L')
-                    section['rot h'] = read('L')
-                    section['rot i'] = read('L')
-
-                    section['pos x'] = read('L')
-                    section['pos y'] = read('L')
-                    section['pos z'] = read('L')
+                elif id == 12 or id == 3:
+                    rotation_matrix = []
+                    for y in range(3):
+                        row = []
+                        for x in range(3):
+                            row.append(read('l') / ROTATION_OFFSET)
+                        rotation_matrix.append(row)
+                    section['rotation matrix'] = rotation_matrix
+                    section['offset vector'] = Vec3(read('l'), read('l'), read('l'))
                     print(pformat(section))
+                    print(math.degrees(math.asin(section['rotation matrix'][1][2])))
+                    print(math.degrees(math.asin(section['rotation matrix'][2][0])))
+                    print(math.degrees(math.asin(section['rotation matrix'][0][1])))
                 else:
                     print('unkown id: %d' % id)
 
@@ -566,6 +562,7 @@ def update_file(e):
         t.focus_force()
 
 def execute_post_update_commands():
+    cmd = None
     aliases = {
             'nf': 'next-frame',
             'ns': 'next-scene',
@@ -678,6 +675,7 @@ unsigned_long = IntVar()
 step = IntVar(value=1)
 step_power = 0
 hexed_long = IntVar()
+double = DoubleVar()
 ignore_list_string = StringVar(value='MVIE SCEN PATH GGFR GST ACTR GGST THUM TDT TMPL')
 
 entry_ignore_list = Entry(top_section, textvariable=ignore_list_string)
@@ -687,6 +685,7 @@ button_update = Button(top_section, text='Update', command=update_display)
 entry_signed_long = Entry(debug_section, textvariable=signed_long)
 entry_unsigned_long = Entry(debug_section, textvariable=unsigned_long)
 entry_hexed_long = Entry(debug_section, textvariable=hexed_long)
+entry_double = Entry(debug_section, textvariable=double)
 entry_step = Entry(debug_section, textvariable=step)
 
 text_post_update_commands = ScrolledText(bottom_section, font='TkFixedFont',
@@ -706,6 +705,7 @@ debug_section.pack(side=LEFT, fill=Y)
 entry_signed_long.pack()
 entry_unsigned_long.pack()
 entry_hexed_long.pack()
+entry_double.pack()
 entry_step.pack()
 text_post_update_commands.pack(side=RIGHT, fill=BOTH)
 
