@@ -7,7 +7,7 @@ import functools
 import struct
 import time
 import pprint
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 from os import system
 import math
 
@@ -19,19 +19,18 @@ ggae_sections = {
         0: 'init',
         1: 'action',
         2: 'outfit',
-        3: 'rotation reset?',
+        3: 'rotation-reset',
         4: 'squish',
         5: 'size',
         6: 'sound',
         7: 'move',
-        8: 'unknown',
-        9: 'single frame move',
-        10: 'unknown',
-        12: 'rotation?',
+        8: 'unknown-8',
+        9: 'single-frame-move',
+        10: 'unknown-10',
+        12: 'rotation',
         }
-
-SCALE_OFFSET = 65536
-ROTATION_OFFSET = 65536
+#add reverse lookup
+ggae_sections.update({(v,k) for k,v in ggae_sections.items()})
 
 def clear():
     enable()
@@ -127,13 +126,35 @@ def dump_quad():
             continue
 
         dump_section = True
-        print_header = True
+        print_header = False
         header_length = 20
         quad_dumps = []
 
         data_file = io.BytesIO(quad.data)
-        read = functools.partial(lib3dmm.read_struct, file=data_file)
-
+        #read = functools.partial(lib3dmm.read_struct, file=data_file)
+        def read(fmt):
+            r = functools.partial(lib3dmm.read_struct, file=data_file)
+            if fmt == "scalar":
+                return r('l') / 65536
+            elif fmt == "angle":
+                return (r('h') / 65536) * 360
+            elif fmt == "vec3":
+                return Vec3(read('scalar'), read('scalar'), read('scalar'))
+            elif fmt == 'matrix34':
+                return [
+                        [read('scalar'), read('scalar'), read('scalar'), 0.0],
+                        [read('scalar'), read('scalar'), read('scalar'), 0.0],
+                        [read('scalar'), read('scalar'), read('scalar'), 0.0],
+                        [read('scalar'), read('scalar'), read('scalar'), 1.0]
+                        ]
+            elif fmt == "section-header":
+                return OrderedDict([
+                        ('L frame', read('L')),
+                        ('L b unknown', read('L')),
+                        ('L c unknown', read('L')),
+                        ('L frame creation offset', read('L'))])
+            else:
+                return r(fmt)
 
         if quad.type == b'GST ':
             magic = read('L')
@@ -205,44 +226,53 @@ def dump_quad():
 
         elif quad.type == b'GGAE':
             dump_section = False
-            magic = read('L')
-            count = read('L')
-            offset = read('L')
+            header = OrderedDict()
+            header['magic'] = read('L')
+            header['count'] = read('L')
+            header['offset'] = read('L')
 
             # read index
-            data_file.seek(offset + header_length)
+            data_file.seek(header['offset'] + header_length)
             index = []
-            for i in range(count):
+            for i in range(header['count']):
                 o = read('L')
                 l = read('L')
                 index.append((o, l))
+            header['index'] = index
+
+            if dump_section:
+                quad_dumps.append(pformat(header))
+                quad_dumps.append('\n\n')
 
             # seek to data and read
             for o,l in index:
+                section = OrderedDict()
                 # section header
                 data_file.seek(o + header_length)
                 id = read('L')
-                quad_dumps.append(ggae_sections[id])
-                section = {}
-                section['_a frame'] = read('L')
-                section['_b unknown c'] = read('L')
-                section['_c unknown d'] = read('L')
-                section['_d frame creation offset'] = read('L')
+                section['id'] = ggae_sections.get(id, 'unknown')
+                if section["id"].upper() not in ignore_list:
+                    quad_dumps.append(section['id'])
+                section['header'] = read('section-header')
+                #section['L frame'] = read('L')
+                #section['L unknown c'] = read('L')
+                #section['L unknown d'] = read('L')
+                #section['L frame creation offset'] = read('L')
 
 
                 # section body
-                if id == 0:
-                    section['offset vector'] = Vec3(read('l'), read('l'), read('l'))
-                    section['rotation pitch'] = read('H')
-                    section['rotation yaw'] = read('H')
-                    section['rotation roll'] = read('H')
-                    section['unknown l'] = read('H')
+                if id == ggae_sections['init']:
+                    section['lll offset vector'] = read('vec3')
+                    section['h rotation pitch'] = read('angle')
+                    section['h rotation yaw'] = read('angle')
+                    section['h rotation roll'] = read('angle')
+                    section['h unknown'] = read('angle')
                     #print(pformat(section))
-                elif id == 1:
+                elif id == ggae_sections['action']:
                     section['action id'] = read('L')
                     section['action frame'] = read('L')
                     #print(pformat(section))
-                elif id == 2:
+                elif id == ggae_sections['outfit']:
                     section['part'] = read('L')
                     section['outfit'] = read('L')
                     section['unknown h'] = read('L')
@@ -251,15 +281,13 @@ def dump_quad():
                     section['label'] = read('4s')[::-1]
                     section['mtrl id'] = read('L')
                     #print(pformat(section))
-                elif id == 4:
-                    section['scale x'] = SCALE_OFFSET - read('L')
-                    section['scale y'] = SCALE_OFFSET - read('L')
-                    section['scale z'] = SCALE_OFFSET - read('L')
+                elif id == ggae_sections['squish']:
+                    section['scale'] = read('vec3')
                     #print(pformat(section))
-                elif id == 5:
-                    section['scale'] = SCALE_OFFSET - read('L')
+                elif id == ggae_sections['size']:
+                    section['size'] = read('scalar')
                     #print(pformat(section))
-                elif id == 6:
+                elif id == ggae_sections['sound']:
                     section['loop'] = read('L')
                     section['unknown g'] = read('L')
                     section['volume'] = read('L')
@@ -272,36 +300,27 @@ def dump_quad():
                     section['label'] = read('4s')[::-1]
                     section['sound id'] = read('L')
                     #print(pformat(section))
-                elif id == 7:
-                    section['offset vector'] = Vec3(read('l'), read('l'), read('l'))
+                elif id == ggae_sections['move']:
+                    section['offset vector'] = read('vec3')
                     #print(pformat(section))
-                elif id == 8:
-                    pass
-                elif id == 9:
-                    section['offset vector'] = Vec3(read('l'), read('l'), read('l'))
+                elif id == ggae_sections['single-frame-move']:
+                    section['offset vector'] = read('vec3')
                     #print(pformat(section))
-                elif id == 10:
-                    pass
-                elif id == 12 or id == 3:
-                    rotation_matrix = []
-                    for y in range(3):
-                        row = []
-                        for x in range(3):
-                            row.append(read('l') / ROTATION_OFFSET)
-                        rotation_matrix.append(row)
-                    section['rotation matrix'] = rotation_matrix
-                    section['offset vector'] = Vec3(read('l'), read('l'), read('l'))
-                    print(pformat(section))
-                    print(math.degrees(math.asin(section['rotation matrix'][1][2])))
-                    print(math.degrees(math.asin(section['rotation matrix'][2][0])))
-                    print(math.degrees(math.asin(section['rotation matrix'][0][1])))
+                elif id == ggae_sections['rotation-reset']:
+                    section['rotation matrix'] = read('matrix34')
+                elif id == ggae_sections['rotation']:
+                    section['rotation matrix'] = read('matrix34')
                 else:
                     print('unkown id: %d' % id)
 
-                data_file.seek(o + header_length)
-                d = data_file.read(l)
-                quad_dumps.append(lib3dmm.hex_dump(d,
-                    quad.section_offset + o + header_length))
+                if section["id"].upper() not in ignore_list:
+                    data_file.seek(o + header_length)
+                    d = data_file.read(l)
+                    quad_dumps.append(lib3dmm.hex_dump(d,
+                        quad.section_offset + o + header_length))
+                    quad_dumps.append(pformat(section))
+                    quad_dumps.append("\n\n")
+
         elif quad.type == b'ACTR':
             actor = {}
 
@@ -676,7 +695,7 @@ step = IntVar(value=1)
 step_power = 0
 hexed_long = IntVar()
 double = DoubleVar()
-ignore_list_string = StringVar(value='MVIE SCEN PATH GGFR GST ACTR GGST THUM TDT TMPL')
+ignore_list_string = StringVar(value='MVIE SCEN PATH GGFR GST ACTR GGST THUM TDT TMPL init action unknown')
 
 entry_ignore_list = Entry(top_section, textvariable=ignore_list_string)
 button_update = Button(top_section, text='Update', command=update_display)
