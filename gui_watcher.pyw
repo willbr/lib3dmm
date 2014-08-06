@@ -24,9 +24,10 @@ ggae_sections = {
         5: 'size',
         6: 'sound',
         7: 'move',
-        8: 'unknown-8',
+        8: 'action-marker',
         9: 'single-frame-move',
         10: 'unknown-10',
+        11: 'cut',
         12: 'rotation',
         }
 #add reverse lookup
@@ -110,6 +111,8 @@ def update_selection_value():
     hex_data = ' '.join(i == 0 and ".." or "{:02X}".format(i) for i in
             selection_value)
     t.replace(selection_start, selection_end, hex_data, 'selection')
+    unsigned_short.set(struct.unpack('<hh', selection_value)[0])
+    #print(struct.unpack('<hh', selection_value))
     signed_long.set(struct.unpack('<l', selection_value)[0])
     unsigned_long.set(struct.unpack('<L', selection_value)[0])
     double.set(struct.unpack('<f', selection_value)[0])
@@ -230,6 +233,8 @@ def dump_quad():
             header['magic'] = read('L')
             header['count'] = read('L')
             header['offset'] = read('L')
+            header['unknown d'] = read('L')
+            header['unknown e'] = read('L')
 
             # read index
             data_file.seek(header['offset'] + header_length)
@@ -271,7 +276,8 @@ def dump_quad():
                 elif id == ggae_sections['action']:
                     section['action id'] = read('L')
                     section['action frame'] = read('L')
-                    #print(pformat(section))
+                elif id == ggae_sections['action-marker']:
+                    section['stop'] = read('L') != 0
                 elif id == ggae_sections['outfit']:
                     section['part'] = read('L')
                     section['outfit'] = read('L')
@@ -310,6 +316,8 @@ def dump_quad():
                     section['rotation matrix'] = read('matrix34')
                 elif id == ggae_sections['rotation']:
                     section['rotation matrix'] = read('matrix34')
+                elif id == ggae_sections['cut']:
+                    pass
                 else:
                     print('unkown id: %d' % id)
 
@@ -689,18 +697,21 @@ top_section = Frame()
 bottom_section = Frame()
 debug_section = Frame(bottom_section)
 
+unsigned_short = IntVar()
 signed_long = IntVar()
 unsigned_long = IntVar()
 step = IntVar(value=1)
 step_power = 0
 hexed_long = IntVar()
 double = DoubleVar()
-ignore_list_string = StringVar(value='MVIE SCEN PATH GGFR GST ACTR GGST THUM TDT TMPL init action unknown')
+ignore_list_string = StringVar(value='MVIE SCEN PATH GGFR GST ACTR ' +
+        'GGST THUM TDT TMPL init action action-marker cut ' +
+        'unknown-10')
 
 entry_ignore_list = Entry(top_section, textvariable=ignore_list_string)
 button_update = Button(top_section, text='Update', command=update_display)
 
-
+entry_unsigned_short = Entry(debug_section, textvariable=unsigned_short)
 entry_signed_long = Entry(debug_section, textvariable=signed_long)
 entry_unsigned_long = Entry(debug_section, textvariable=unsigned_long)
 entry_hexed_long = Entry(debug_section, textvariable=hexed_long)
@@ -721,11 +732,24 @@ t.pack(fill=BOTH, expand = YES)
 bottom_section.pack(side=BOTTOM, fill=BOTH, expand=YES)
 debug_section.pack(side=LEFT, fill=Y)
 
-entry_signed_long.pack()
-entry_unsigned_long.pack()
-entry_hexed_long.pack()
-entry_double.pack()
-entry_step.pack()
+Label(debug_section, text="unsigned short").grid(row=0)
+entry_unsigned_short.grid(row=0, column=1)
+
+Label(debug_section, text="signed long").grid(row=1)
+entry_signed_long.grid(row=1, column=1)
+
+Label(debug_section, text="unsigned long").grid(row=2)
+entry_unsigned_long.grid(row=2, column=1)
+
+Label(debug_section, text="hex").grid(row=3)
+entry_hexed_long.grid(row=3, column=1)
+
+Label(debug_section, text="double").grid(row=4)
+entry_double.grid(row=4, column=1)
+
+Label(debug_section, text="step").grid(row=5)
+entry_step.grid(row=5, column=1)
+
 text_post_update_commands.pack(side=RIGHT, fill=BOTH)
 
 entry_ignore_list.bind('<Return>', lambda e: update_display())
