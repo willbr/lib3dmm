@@ -24,9 +24,9 @@ ggae_sections = {
         5: 'size',
         6: 'sound',
         7: 'move',
-        8: 'action-marker',
+        8: 'action-marker-1?',
         9: 'single-frame-move',
-        10: 'unknown-10',
+        10: 'action-marker-2?',
         11: 'cut',
         12: 'rotation',
         }
@@ -111,6 +111,9 @@ def update_selection_value():
     hex_data = ' '.join(i == 0 and ".." or "{:02X}".format(i) for i in
             selection_value)
     t.replace(selection_start, selection_end, hex_data, 'selection')
+    br_scalar.set(struct.unpack('<l', selection_value)[0] / 65536.0)
+    br_angle_a.set((struct.unpack('<hh', selection_value)[0] / 65536.0) * 360.0)
+    br_angle_b.set((struct.unpack('<hh', selection_value)[1] / 65536.0) * 360.0)
     unsigned_short.set(struct.unpack('<hh', selection_value)[0])
     #print(struct.unpack('<hh', selection_value))
     signed_long.set(struct.unpack('<l', selection_value)[0])
@@ -276,8 +279,10 @@ def dump_quad():
                 elif id == ggae_sections['action']:
                     section['action id'] = read('L')
                     section['action frame'] = read('L')
-                elif id == ggae_sections['action-marker']:
+                elif id == ggae_sections['action-marker-1?']:
                     section['stop'] = read('L') != 0
+                elif id == ggae_sections['action-marker-2?']:
+                    section['start'] = read('L') != 0
                 elif id == ggae_sections['outfit']:
                     section['part'] = read('L')
                     section['outfit'] = read('L')
@@ -349,22 +354,50 @@ def dump_quad():
 
             print(pformat (actor))
         elif quad.type == b'PATH':
-            print_header = False
-            path = {}
+            dump_section = True
+            section = OrderedDict()
+            header = OrderedDict()
+            header['magic'] = read('L')
+            header['offset'] = read('L')
+            header['count'] = read('L')
+            path = []
+            for i in range(header['count']):
+                step = OrderedDict()
+                step['delta'] = read('vec3')
+                step['unknown e'] = read('scalar')
+                path.append(step)
+            section['path'] = path
 
-            magic = read('L')
-            path['unknown id'] = read('L')
-            count = read('L')
-            steps = []
-            for i in range(count):
-                step = {}
-                step['pos x?'] = read('L')
-                step['pos y?'] = read('L')
-                step['pos z?'] = read('L')
-                step['unknown rot?'] = read('L')
-                steps.append(step)
-            path['steps'] = steps
-            print(pformat (path))
+
+            # read index
+            #data_file.seek(header['offset'] + header_length)
+            #index = []
+            #for i in range(header['count']):
+                #o = read('L')
+                #l = read('L')
+                #index.append((o, l))
+            #header['index'] = index
+
+            if dump_section:
+                quad_dumps.append(pformat(section))
+                quad_dumps.append('\n\n')
+
+            #print_header = False
+            #path = {}
+
+            #magic = read('L')
+            #path['unknown id'] = read('L')
+            #count = read('L')
+            #steps = []
+            #for i in range(count):
+                #step = {}
+                #step['pos x?'] = read('L')
+                #step['pos y?'] = read('L')
+                #step['pos z?'] = read('L')
+                #step['unknown rot?'] = read('L')
+                #steps.append(step)
+            #path['steps'] = steps
+            #quad_dumps.append(pformat(path))
         elif quad.type == b'GGFR':
             dump_section = False
             magic = read('L')
@@ -697,6 +730,9 @@ top_section = Frame()
 bottom_section = Frame()
 debug_section = Frame(bottom_section)
 
+br_scalar = DoubleVar()
+br_angle_a = DoubleVar()
+br_angle_b = DoubleVar()
 unsigned_short = IntVar()
 signed_long = IntVar()
 unsigned_long = IntVar()
@@ -704,13 +740,16 @@ step = IntVar(value=1)
 step_power = 0
 hexed_long = IntVar()
 double = DoubleVar()
-ignore_list_string = StringVar(value='MVIE SCEN PATH GGFR GST ACTR ' +
-        'GGST THUM TDT TMPL init action action-marker cut ' +
-        'unknown-10')
+ignore_list_string = StringVar(value='MVIE SCEN GGAE GGFR GST ACTR ' +
+        'GGST THUM TDT TMPL init action cut ' +
+        'action-marker-1? action-marker-2?')
 
 entry_ignore_list = Entry(top_section, textvariable=ignore_list_string)
 button_update = Button(top_section, text='Update', command=update_display)
 
+entry_br_scalar  = Entry(debug_section, textvariable=br_scalar)
+entry_br_angle_a = Entry(debug_section, textvariable=br_angle_a)
+entry_br_angle_b = Entry(debug_section, textvariable=br_angle_b)
 entry_unsigned_short = Entry(debug_section, textvariable=unsigned_short)
 entry_signed_long = Entry(debug_section, textvariable=signed_long)
 entry_unsigned_long = Entry(debug_section, textvariable=unsigned_long)
@@ -732,23 +771,32 @@ t.pack(fill=BOTH, expand = YES)
 bottom_section.pack(side=BOTTOM, fill=BOTH, expand=YES)
 debug_section.pack(side=LEFT, fill=Y)
 
-Label(debug_section, text="unsigned short").grid(row=0)
-entry_unsigned_short.grid(row=0, column=1)
+Label(debug_section, text="br_scalar").grid(row=1)
+entry_br_scalar.grid(row=1, column=1)
 
-Label(debug_section, text="signed long").grid(row=1)
-entry_signed_long.grid(row=1, column=1)
+Label(debug_section, text="br_angle a").grid(row=2)
+entry_br_angle_a.grid(row=2, column=1)
 
-Label(debug_section, text="unsigned long").grid(row=2)
-entry_unsigned_long.grid(row=2, column=1)
+Label(debug_section, text="br_angle a").grid(row=3)
+entry_br_angle_b.grid(row=3, column=1)
 
-Label(debug_section, text="hex").grid(row=3)
-entry_hexed_long.grid(row=3, column=1)
+Label(debug_section, text="unsigned short").grid(row=4)
+entry_unsigned_short.grid(row=4, column=1)
 
-Label(debug_section, text="double").grid(row=4)
-entry_double.grid(row=4, column=1)
+Label(debug_section, text="signed long").grid(row=5)
+entry_signed_long.grid(row=5, column=1)
 
-Label(debug_section, text="step").grid(row=5)
-entry_step.grid(row=5, column=1)
+Label(debug_section, text="unsigned long").grid(row=6)
+entry_unsigned_long.grid(row=6, column=1)
+
+Label(debug_section, text="hex").grid(row=7)
+entry_hexed_long.grid(row=7, column=1)
+
+Label(debug_section, text="double").grid(row=8)
+entry_double.grid(row=8, column=1)
+
+Label(debug_section, text="step").grid(row=9)
+entry_step.grid(row=9, column=1)
 
 text_post_update_commands.pack(side=RIGHT, fill=BOTH)
 
