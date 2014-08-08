@@ -111,16 +111,23 @@ def update_selection_value():
     hex_data = ' '.join(i == 0 and ".." or "{:02X}".format(i) for i in
             selection_value)
     t.replace(selection_start, selection_end, hex_data, 'selection')
-    br_scalar.set(struct.unpack('<l', selection_value)[0] / 65536.0)
-    br_angle_a.set((struct.unpack('<hh', selection_value)[0] / 65536.0) * 360.0)
-    br_angle_b.set((struct.unpack('<hh', selection_value)[1] / 65536.0) * 360.0)
-    unsigned_short.set(struct.unpack('<hh', selection_value)[0])
-    #print(struct.unpack('<hh', selection_value))
-    signed_long.set(struct.unpack('<l', selection_value)[0])
-    unsigned_long.set(struct.unpack('<L', selection_value)[0])
+
+    var_br_scalar.set(struct.unpack('<l', selection_value)[0] / 65536.0)
+    var_br_angle_a.set((struct.unpack('<hh', selection_value)[0] / 65536.0) * 360.0)
+    var_br_angle_b.set((struct.unpack('<hh', selection_value)[1] / 65536.0) * 360.0)
+
+    var_unsigned_short_a.set(struct.unpack('<HH', selection_value)[0])
+    var_signed_short_a.set(struct.unpack('<hh', selection_value)[0])
+    var_unsigned_short_b.set(struct.unpack('<HH', selection_value)[1])
+    var_signed_short_b.set(struct.unpack('<hh', selection_value)[1])
+
+    var_signed_long.set(struct.unpack('<l', selection_value)[0])
+    var_unsigned_long.set(struct.unpack('<L', selection_value)[0])
+
     var_float.set(struct.unpack('<f', selection_value)[0])
+
     var_ascii.set(struct.unpack('<4s', selection_value)[0])
-    hexed_long.set('0X' + ''.join('{:02X}'.format(i) for i in
+    var_hex.set('0X' + ''.join('{:02X}'.format(i) for i in
         selection_value[::-1]))
     disable()
 
@@ -746,17 +753,21 @@ top_section = Frame()
 bottom_section = Frame()
 debug_section = Frame(bottom_section)
 
-br_scalar = DoubleVar()
-br_angle_a = DoubleVar()
-br_angle_b = DoubleVar()
-unsigned_short = IntVar()
-signed_long = IntVar()
-unsigned_long = IntVar()
-step = IntVar(value=1)
+var_br_scalar = DoubleVar()
+var_br_angle_a = DoubleVar()
+var_br_angle_b = DoubleVar()
+var_unsigned_short_a = IntVar()
+var_signed_short_a = IntVar()
+var_unsigned_short_b = IntVar()
+var_signed_short_b = IntVar()
+var_unsigned_long = IntVar()
+var_signed_long = IntVar()
+var_step = IntVar(value=1)
 step_power = 0
 var_ascii = StringVar()
-hexed_long = IntVar()
+var_hex = IntVar()
 var_float = DoubleVar()
+
 ignore_list_string = StringVar(value='MVIE SCEN GGAE GGFR PATH ACTR ' +
         'GGST THUM TDT TMPL init action cut ' +
         'action-marker-1? action-marker-2?')
@@ -764,16 +775,19 @@ ignore_list_string = StringVar(value='MVIE SCEN GGAE GGFR PATH ACTR ' +
 entry_ignore_list = Entry(top_section, textvariable=ignore_list_string)
 button_update = Button(top_section, text='Update', command=update_display)
 
-entry_br_scalar  = Entry(debug_section, textvariable=br_scalar)
-entry_br_angle_a = Entry(debug_section, textvariable=br_angle_a)
-entry_br_angle_b = Entry(debug_section, textvariable=br_angle_b)
-entry_unsigned_short = Entry(debug_section, textvariable=unsigned_short)
-entry_signed_long = Entry(debug_section, textvariable=signed_long)
-entry_unsigned_long = Entry(debug_section, textvariable=unsigned_long)
+entry_br_scalar  = Entry(debug_section, textvariable=var_br_scalar)
+entry_br_angle_a = Entry(debug_section, textvariable=var_br_angle_a)
+entry_br_angle_b = Entry(debug_section, textvariable=var_br_angle_b)
+entry_unsigned_short_a = Entry(debug_section, textvariable=var_unsigned_short_a)
+entry_signed_short_a = Entry(debug_section, textvariable=var_signed_short_a)
+entry_unsigned_short_b = Entry(debug_section, textvariable=var_unsigned_short_b)
+entry_signed_short_b = Entry(debug_section, textvariable=var_signed_short_b)
+entry_signed_long = Entry(debug_section, textvariable=var_signed_long)
+entry_unsigned_long = Entry(debug_section, textvariable=var_unsigned_long)
 entry_ascii = Entry(debug_section, textvariable=var_ascii)
-entry_hexed_long = Entry(debug_section, textvariable=hexed_long)
+entry_hex = Entry(debug_section, textvariable=var_hex)
 entry_float = Entry(debug_section, textvariable=var_float)
-entry_step = Entry(debug_section, textvariable=step)
+entry_step = Entry(debug_section, textvariable=var_step)
 
 text_post_update_commands = ScrolledText(bottom_section, font='TkFixedFont',
         width=20, height=10,
@@ -795,10 +809,13 @@ debug_variables = [
         ["br_scalar", entry_br_scalar],
         ["br_angle a", entry_br_angle_a],
         ["br_angle b", entry_br_angle_b],
-        ["unsigned_short", entry_unsigned_short],
+        ["unsigned short a", entry_unsigned_short_a],
+        ["signed short a", entry_signed_short_a],
+        ["unsigned short b", entry_unsigned_short_b],
+        ["signed short b", entry_signed_short_b],
         ["signed long", entry_signed_long],
         ["unsigned long", entry_unsigned_long],
-        ["hex", entry_hexed_long],
+        ["hex", entry_hex],
         ["ascii", entry_ascii],
         ["float", entry_float],
         ["step", entry_step]
