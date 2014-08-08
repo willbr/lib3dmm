@@ -118,7 +118,8 @@ def update_selection_value():
     #print(struct.unpack('<hh', selection_value))
     signed_long.set(struct.unpack('<l', selection_value)[0])
     unsigned_long.set(struct.unpack('<L', selection_value)[0])
-    double.set(struct.unpack('<f', selection_value)[0])
+    var_float.set(struct.unpack('<f', selection_value)[0])
+    var_ascii.set(struct.unpack('<4s', selection_value)[0])
     hexed_long.set('0X' + ''.join('{:02X}'.format(i) for i in
         selection_value[::-1]))
     disable()
@@ -163,16 +164,23 @@ def dump_quad():
                 return r(fmt)
 
         if quad.type == b'GST ':
-            magic = read('L')
-            gst_type = read('L')
-            count = read('L')
-            offset = read('L')
-            data_file.seek(offset + header_length)
+            dump_section = True
+            header = OrderedDict()
+            header['magic'] = read('L')
+            header['gst_type'] = read('L')
+            header['count'] = read('L')
+            header['offset'] = read('L')
+            header['unknown'] = read('L')
 
-            if gst_type == 0x20:
+            data_file.seek(header['offset'] + header_length)
+
+            quad_dumps.append(pformat(header))
+            quad_dumps.append("\n\n")
+
+            if header['gst_type'] == 0x20:
                 actors = []
-                for i in range(count):
-                    actor = {}
+                for i in range(header['count']):
+                    actor = OrderedDict()
                     actor['name_offset'] = read('L')
                     actor['id'] = read('L')
                     actor['unknown_c'] = read('L')
@@ -184,8 +192,8 @@ def dump_quad():
                     actors.append(actor)
 
                 length = 4 * 8
-                for i in range(count):
-                    o = offset + header_length + i * length
+                for i in range(header['count']):
+                    o = header['offset'] + header_length + i * length
                     data_file.seek(o)
                     d = data_file.read(length)
                     quad_dumps.append(lib3dmm.hex_dump(d,
@@ -195,25 +203,24 @@ def dump_quad():
                     actor = actors[i]
                     data_file.seek(header_length + actor['name_offset'])
                     length = read('B')
+                    actor['name length'] = length
                     actor['name'] = read('%ds' % length)
 
-                print(pformat (actors))
+                quad_dumps.append(pformat(actors))
+                quad_dumps.append("\n\n")
 
-            elif gst_type == 0x08:
+            elif header['gst_type'] == 0x08:
                 data_file.seek(header_length)
                 d = data_file.read(quad.section_length -
-                        (quad.section_length -offset))
-                quad_dumps.append(lib3dmm.hex_dump(d,
-                    quad.section_offset + header_length))
+                        (quad.section_length - header['offset']))
 
-                data_file.seek(header_length + offset)
+                data_file.seek(header_length + header['offset'])
                 d = data_file.read(quad.section_length)
-                quad_dumps.append(lib3dmm.hex_dump(d,
-                    quad.section_offset + header_length + offset))
 
-                data_file.seek(header_length + offset)
+
+                data_file.seek(header_length + header['offset'])
                 index = []
-                for i in range(count):
+                for i in range(header['count']):
                     offset = read('L')
                     id = read('L')
                     index.append((offset, id))
@@ -225,8 +232,17 @@ def dump_quad():
                     length = read('B')
                     name = read('%ds' % length)
                     strings.append((id, name))
-                strings.sort()
-                print(pformat(strings))
+
+                quad_dumps.append(lib3dmm.hex_dump(d,
+                    quad.section_offset + header_length + header['offset']))
+                quad_dumps.append(pformat(index))
+                quad_dumps.append("\n\n")
+
+                quad_dumps.append(lib3dmm.hex_dump(d,
+                    quad.section_offset + header_length))
+
+                quad_dumps.append(pformat(strings))
+                quad_dumps.append("\n\n")
             else:
                 print ('unknown gst_type: {}'.format(gst_type))
 
@@ -738,9 +754,10 @@ signed_long = IntVar()
 unsigned_long = IntVar()
 step = IntVar(value=1)
 step_power = 0
+var_ascii = StringVar()
 hexed_long = IntVar()
-double = DoubleVar()
-ignore_list_string = StringVar(value='MVIE SCEN GGAE GGFR GST ACTR ' +
+var_float = DoubleVar()
+ignore_list_string = StringVar(value='MVIE SCEN GGAE GGFR PATH ACTR ' +
         'GGST THUM TDT TMPL init action cut ' +
         'action-marker-1? action-marker-2?')
 
@@ -753,8 +770,9 @@ entry_br_angle_b = Entry(debug_section, textvariable=br_angle_b)
 entry_unsigned_short = Entry(debug_section, textvariable=unsigned_short)
 entry_signed_long = Entry(debug_section, textvariable=signed_long)
 entry_unsigned_long = Entry(debug_section, textvariable=unsigned_long)
+entry_ascii = Entry(debug_section, textvariable=var_ascii)
 entry_hexed_long = Entry(debug_section, textvariable=hexed_long)
-entry_double = Entry(debug_section, textvariable=double)
+entry_float = Entry(debug_section, textvariable=var_float)
 entry_step = Entry(debug_section, textvariable=step)
 
 text_post_update_commands = ScrolledText(bottom_section, font='TkFixedFont',
@@ -771,32 +789,27 @@ t.pack(fill=BOTH, expand = YES)
 bottom_section.pack(side=BOTTOM, fill=BOTH, expand=YES)
 debug_section.pack(side=LEFT, fill=Y)
 
-Label(debug_section, text="br_scalar").grid(row=1)
-entry_br_scalar.grid(row=1, column=1)
+# add ASCII ENTRY!!
 
-Label(debug_section, text="br_angle a").grid(row=2)
-entry_br_angle_a.grid(row=2, column=1)
+debug_variables = [
+        ["br_scalar", entry_br_scalar],
+        ["br_angle a", entry_br_angle_a],
+        ["br_angle b", entry_br_angle_b],
+        ["unsigned_short", entry_unsigned_short],
+        ["signed long", entry_signed_long],
+        ["unsigned long", entry_unsigned_long],
+        ["hex", entry_hexed_long],
+        ["ascii", entry_ascii],
+        ["float", entry_float],
+        ["step", entry_step]
+        ]
 
-Label(debug_section, text="br_angle a").grid(row=3)
-entry_br_angle_b.grid(row=3, column=1)
-
-Label(debug_section, text="unsigned short").grid(row=4)
-entry_unsigned_short.grid(row=4, column=1)
-
-Label(debug_section, text="signed long").grid(row=5)
-entry_signed_long.grid(row=5, column=1)
-
-Label(debug_section, text="unsigned long").grid(row=6)
-entry_unsigned_long.grid(row=6, column=1)
-
-Label(debug_section, text="hex").grid(row=7)
-entry_hexed_long.grid(row=7, column=1)
-
-Label(debug_section, text="double").grid(row=8)
-entry_double.grid(row=8, column=1)
-
-Label(debug_section, text="step").grid(row=9)
-entry_step.grid(row=9, column=1)
+i = 1
+for value_holder in debug_variables:
+    text, variable = value_holder
+    Label(debug_section, text=text).grid(row=i)
+    variable.grid(row=i, column=1)
+    i = i + 1
 
 text_post_update_commands.pack(side=RIGHT, fill=BOTH)
 
