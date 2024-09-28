@@ -54,7 +54,7 @@ class Chunk:
 
     def load(self, file, length):
         read = functools.partial(read_struct, file=file)
-        self.type = read('4s')[::-1]
+        self.type = read('4s')[::-1].decode('ascii')
         self.id = read('L')
         self.section_offset = read('L')
         self.mode = read('B')
@@ -69,7 +69,7 @@ class Chunk:
         # parse references
         for i in range(self.reference_count):
             reference = {
-                'type': read('4s')[::-1],
+                'type': read('4s')[::-1].decode('ascii'),
                 'id': read('L'),
                 'reference_id': read('L')
             }
@@ -82,7 +82,7 @@ class Chunk:
             string_length = read('B')
             if marker == (3, 3):
                 # ASCII
-                self.string = read('{}s'.format(string_length))
+                self.string = read('{}s'.format(string_length)).decode('ascii')
             elif marker == (5, 5):
                 # Unicode
                 characters = []

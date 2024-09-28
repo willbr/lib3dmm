@@ -2,25 +2,26 @@ from tkinter import *
 from tkinter import ttk
 import tkinter.font
 import lib3dmm
+import struct
 
 verbose_type_names = {
-    b'MVIE': 'Movie : MVIE',
-    b'GST ': 'String Table : GST',
-    b'MSND': 'Movie Sound : MSND',
-    b'WAVE': 'Waveform Audio : WAVE',
-    b'SCEN': 'Scene : SCEN',
-    b'ACTR': 'Actor : ACTR',
-    b'GGAE': 'Actor Event : GGAE',
-    b'PATH': 'Path : PATH',
-    b'GGFR': 'Frame Events : GGFR',
-    b'THUM': 'Thumbnail : THUM',
-    b'GGST': 'Dynamic String Table : GGST',
-    b'TDT': '3D Text : TDT',
-    b'BMDL': 'Body Model : BMDL',
-    b'TDFF': '3D Font on File : TDFF',
-    b'CMTL': 'Custom Material : CMTL',
-    b'MTRL': 'Material : MTRL',
-    b'TDF': '3D Font : TDF'
+    'MVIE': 'Movie : MVIE',
+    'GST ': 'String Table : GST',
+    'MSND': 'Movie Sound : MSND',
+    'WAVE': 'Waveform Audio : WAVE',
+    'SCEN': 'Scene : SCEN',
+    'ACTR': 'Actor : ACTR',
+    'GGAE': 'Actor Event : GGAE',
+    'PATH': 'Path : PATH',
+    'GGFR': 'Frame Events : GGFR',
+    'THUM': 'Thumbnail : THUM',
+    'GGST': 'Dynamic String Table : GGST',
+    'TDT': '3D Text : TDT',
+    'BMDL': 'Body Model : BMDL',
+    'TDFF': '3D Font on File : TDFF',
+    'CMTL': 'Custom Material : CMTL',
+    'MTRL': 'Material : MTRL',
+    'TDF': '3D Font : TDF'
 }
 
 
@@ -32,9 +33,9 @@ class Application(Frame):
 
     def createWidgets(self):
         self.tree = ttk.Treeview(self)
-        self.tree['columns'] = ('id', 'string', 'offset', 'length')
-        self.tree.heading('id', text='ID')
-        self.tree.heading('string', text='String')
+        self.tree['columns'] = ('key', 'value', 'offset', 'length')
+        self.tree.heading('key', text='Key')
+        self.tree.heading('value', text='Value')
         self.tree.heading('offset', text='Offset')
         self.tree.heading('length', text='Length')
         self.tree.grid(row=0, column=0, sticky='news')
@@ -69,8 +70,68 @@ class Application(Frame):
                     chunk.string,
                     chunk.section_offset,
                     chunk.section_length))
+
+        if chunk.type == 'MVIE':
+            ( bo, osk, current_version, backward_version,) = struct.unpack('<hhhh', chunk.data)
+            #print(f'{bo=:04x} {osk=:04x} {current_version=} {backward_version=}')
+            _ = self.tree.insert(node_id,
+                    'end',
+                    text='attribute',
+                    open=True,
+                    values=('current_version', current_version, 0, 0))
+            _ = self.tree.insert(node_id,
+                    'end',
+                    text='attribute',
+                    open=True,
+                    values=('backward_version', backward_version, 0, 0))
+        elif chunk.type == 'SCEN':
+            pass
+        elif chunk.type == 'ACTR':
+            pass
+        elif chunk.type == 'PATH':
+            pass
+        elif chunk.type == 'THUM':
+            pass
+        elif chunk.type == 'GGAE':
+            pass
+        elif chunk.type == 'GGFR':
+            pass
+        elif chunk.type == 'GST ':
+            bo, osk, cbEntry, ibstMac, bstMac, cbstFree = struct.unpack_from('<hhllll', chunk.data, 0)
+            #print(f'{bo=:04x} {osk=:04x} {cbEntry=} {ibstMac=} {bstMac=} {cbstFree=} ')
+
+            pos = 20
+
+            for i in range(ibstMac):
+                string_length = struct.unpack_from('<B', chunk.data, pos)[0]
+                pos += 1
+                s = chunk.data[pos:pos+string_length]
+                s = s.decode('ascii')
+                #print(f'{string_length=:3d}, {s=}')
+                pos += string_length
+                _ = self.tree.insert(node_id,
+                        'end',
+                        text='string',
+                        open=True,
+                        values=(
+                            i,
+                            s,
+                            pos,
+                            string_length))
+
+        elif chunk.type == 'GGST':
+            pass
+        elif chunk.type == 'MSND':
+            pass
+        elif chunk.type == 'WAVE':
+            pass
+        else:
+            print(chunk.type)
+            print(chunk.data)
+
         for ref in chunk.references:
             child = self.movie.get_chunk(ref)
+            assert child is not None
             self.walk_chunk_tree(child, node_id)
 
     def delete_tree(self):
