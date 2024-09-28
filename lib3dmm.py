@@ -4,7 +4,6 @@ from colorama import Fore, Back, Style
 
 def hex_dump(data, line_offset=0):
     output = []
-
     for line in range(0, len(data), 16):
         d = data[line: line + 16]
         str_data = ''.join(31 < i < 127 and chr(i) or '.' for i in d)
@@ -13,13 +12,11 @@ def hex_dump(data, line_offset=0):
 
 def hex_dump_string(data, line_offset=0):
     output = []
-
     for line in range(0, len(data), 16):
         d = data[line: line + 16]
         hex_data = ' '.join(i == 0 and ".." or "{:02X}".format(i) for i in d)
         str_data = ''.join(31 < i < 127 and chr(i) or ' ' for i in d)
-        output.append("{:08X} | {:47} | {}".format(line + line_offset,
-            hex_data, str_data))
+        output.append("{:08X} | {:47} | {}".format(line + line_offset, hex_data, str_data))
     return '\n'.join(output)
 
 def hex_dump_compare(a_data, b_data, line_offset=0):
@@ -43,19 +40,15 @@ def hex_dump_compare(a_data, b_data, line_offset=0):
                 char = (b == 0) and '..' or "{:02X}".format(b)
                 char = prefix + char + postfix
                 output.append(char)
-
         hex_data = ' '.join(output)
-        print("{:8X} | {:3} | {:47}".format(i + line_offset,
-            i + line_offset, hex_data))
+        print("{:8X} | {:3} | {:47}".format(i + line_offset, i + line_offset, hex_data))
 
 def read_struct(fmt, file, byte_order='<'):
     size = struct.calcsize(fmt)
-    # all 3dmm files use little endian
     data_tuple = struct.unpack(byte_order + fmt, file.read(size))
     return data_tuple[0] if len(data_tuple) == 1 else data_tuple
 
-
-class Quad:
+class Chunk:
     def __init__(self, file, length):
         self.load(file, length)
 
@@ -65,28 +58,25 @@ class Quad:
         self.id = read('L')
         self.section_offset = read('L')
         self.mode = read('B')
+        self.section_length = struct.unpack('<L', file.read(3) + b'\0')[0]
 
-        self.section_length = struct.unpack('<L',
-                file.read(3) + b'\0')[0]
-
-        self.references=[]
+        self.references = []
         self.reference_count = read('H')
-        self.references_to_this_quad = read('H')
+        self.references_to_this_chunk = read('H')
 
         length_of_references = 12 * self.reference_count
-
 
         # parse references
         for i in range(self.reference_count):
             reference = {
-                    'type': read('4s')[::-1],
-                    'id': read('L'),
-                    'reference_id': read('L')
-                    }
+                'type': read('4s')[::-1],
+                'id': read('L'),
+                'reference_id': read('L')
+            }
             self.references.append(reference)
 
-        quad_header_length = 20
-        if length_of_references + quad_header_length != length:
+        chunk_header_length = 20
+        if length_of_references + chunk_header_length != length:
             # We have a string
             marker = read('2B')
             string_length = read('B')
@@ -111,16 +101,14 @@ class Quad:
         self.data = file.read(self.section_length)
 
     def __str__(self):
-        return '<Quad {} {} {} offset={:04X} lenth={}>'.format(
-                self.type, self.id,
-                self.string, self.section_offset, self.section_length)
+        return '<Chunk {} {} {} offset={:04X} length={}>'.format(
+            self.type, self.id, self.string, self.section_offset, self.section_length)
 
-
-class Movie:
+class ChunkFile:
     def __init__(self, name):
-        self.movie_file_name = name
-        self.movie_file = open(name, 'rb')
-        read = functools.partial(read_struct, file=self.movie_file)
+        self.chunk_file_name = name
+        self.chunk_file = open(name, 'rb')
+        read = functools.partial(read_struct, file=self.chunk_file)
 
         self.id = read('8s')
         self.version = read('2H')
@@ -130,61 +118,58 @@ class Movie:
         self.index_length = read('L')
         self.dummy = read('L')
 
-        self.movie_file.seek(self.index_offset)
+        self.chunk_file.seek(self.index_offset)
         
-        self.quad_marker = read('4B')
-        self.quad_count = read('L')
-        self.quad_length = read('L')
-        self.quad_unk = read('ll')
+        self.chunk_marker = read('4B')
+        self.chunk_count = read('L')
+        self.chunk_length = read('L')
+        self.chunk_unk = read('ll')
 
-        self.quad_start = self.movie_file.tell()
+        self.chunk_start = self.chunk_file.tell()
 
-        # load quad index
-        self.movie_file.seek(self.quad_start+self.quad_length)
-        self.quad_indexes = []
-        for i in range(self.quad_count):
-            self.quad_indexes.append(read('2L'))
+        # load chunk index
+        self.chunk_file.seek(self.chunk_start + self.chunk_length)
+        self.chunk_indexes = []
+        for i in range(self.chunk_count):
+            self.chunk_indexes.append(read('2L'))
 
-        # load quads
-        self.quads = []
-        for offset, length in self.quad_indexes:
-            self.movie_file.seek(self.quad_start + offset)
-            self.quads.append(Quad(self.movie_file, length))
+        # load chunks
+        self.chunks = []
+        for offset, length in self.chunk_indexes:
+            self.chunk_file.seek(self.chunk_start + offset)
+            self.chunks.append(Chunk(self.chunk_file, length))
 
-        self.movie_file.close()
+        self.chunk_file.close()
         return
 
-
     def print_tree(self):
-        for indent, quad in self.walk(0, self.get_root_quad()):
-            print("{}{}".format(indent * '    ', quad))
+        for indent, chunk in self.walk(0, self.get_root_chunk()):
+            print("{}{}".format(indent * '    ', chunk))
 
     def get_tree(self):
-        for indent, quad in self.walk(0, self.get_root_quad()):
-            yield (indent, quad)
+        for indent, chunk in self.walk(0, self.get_root_chunk()):
+            yield (indent, chunk)
 
-    def walk(self, level, quad):
-        if quad:
-            yield level, quad
-            for ref in quad.references:
-                for l, q in self.walk(level + 1, self.get_quad(ref)):
+    def walk(self, level, chunk):
+        if chunk:
+            yield level, chunk
+            for ref in chunk.references:
+                for l, q in self.walk(level + 1, self.get_chunk(ref)):
                     yield l, q
 
-    def get_quad(self, ref):
+    def get_chunk(self, ref):
         ref_type = ref['type']
         ref_id = ref['id']
-        for quad in self.quads:
-            if quad.type == ref_type and quad.id == ref_id:
-                return quad
+        for chunk in self.chunks:
+            if chunk.type == ref_type and chunk.id == ref_id:
+                return chunk
 
-    def get_root_quad(self):
+    def get_root_chunk(self):
         root = None
-        for quad in self.quads:
-            if quad.mode == 2:
-                root = quad
+        for chunk in self.chunks:
+            if chunk.mode == 2:
+                root = chunk
         return root
-
-
 
 if __name__ == '__main__':
     pass
